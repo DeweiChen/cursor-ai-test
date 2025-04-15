@@ -107,7 +107,11 @@
         let currentChatroomName = '';
 
         // Load chatrooms when page loads
-        window.onload = loadChatrooms;
+        window.onload = function() {
+            loadChatrooms();
+            // Refresh chatroom list every 5 seconds
+            setInterval(loadChatrooms, 5000);
+        };
 
         function loadChatrooms() {
             fetch('/api/chatrooms')

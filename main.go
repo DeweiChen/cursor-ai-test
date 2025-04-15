@@ -16,9 +16,9 @@ func main() {
 	messageRepo := repositories.NewMemoryMessageRepository()
 
 	// Initialize handlers
-	chatroomHandler := handlers.NewChatroomHandler(chatroomRepo)
-	messageHandler := handlers.NewMessageHandler(messageRepo, chatroomRepo)
 	wsManager := handlers.NewWebSocketManager(messageRepo)
+	chatroomHandler := handlers.NewChatroomHandler(chatroomRepo, wsManager)
+	messageHandler := handlers.NewMessageHandler(messageRepo, chatroomRepo)
 
 	// Health check endpoint
 	r.GET("/health", handlers.HealthCheck)
@@ -30,7 +30,7 @@ func main() {
 	chatroomGroup := r.Group("/api/chatrooms")
 	{
 		chatroomGroup.POST("", chatroomHandler.CreateChatroom)
-		chatroomGroup.GET("", chatroomHandler.GetAllChatrooms)
+		chatroomGroup.GET("", chatroomHandler.GetActiveChatrooms)
 		chatroomGroup.GET("/:id", chatroomHandler.GetChatroom)
 		chatroomGroup.PUT("/:id", chatroomHandler.UpdateChatroom)
 		chatroomGroup.DELETE("/:id", chatroomHandler.DeleteChatroom)

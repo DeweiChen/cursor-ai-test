@@ -5,6 +5,7 @@ import (
 	"root/api/models"
 	"root/api/repositories"
 	"sync"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
@@ -23,15 +24,38 @@ type WebSocketConnection struct {
 
 // WebSocketManager manages all WebSocket connections
 type WebSocketManager struct {
-	connections map[string][]*WebSocketConnection
-	mu          sync.RWMutex
-	messageRepo repositories.MessageRepository
+	connections  map[string][]*WebSocketConnection
+	mu           sync.RWMutex
+	messageRepo  repositories.MessageRepository
+	lastActivity map[string]time.Time
 }
 
 func NewWebSocketManager(messageRepo repositories.MessageRepository) *WebSocketManager {
-	return &WebSocketManager{
-		connections: make(map[string][]*WebSocketConnection),
-		messageRepo: messageRepo,
+	manager := &WebSocketManager{
+		connections:  make(map[string][]*WebSocketConnection),
+		messageRepo:  messageRepo,
+		lastActivity: make(map[string]time.Time),
+	}
+	go manager.startCleanupRoutine()
+	return manager
+}
+
+func (m *WebSocketManager) startCleanupRoutine() {
+	ticker := time.NewTicker(1 * time.Second)
+	defer ticker.Stop()
+
+	for range ticker.C {
+		m.mu.Lock()
+		now := time.Now()
+		for chatroomID, lastActive := range m.lastActivity {
+			connections, exists := m.connections[chatroomID]
+			if (!exists || len(connections) == 0) && now.Sub(lastActive) > 10*time.Second {
+				delete(m.connections, chatroomID)
+				delete(m.lastActivity, chatroomID)
+				log.Printf("Cleaned up inactive chatroom: %s", chatroomID)
+			}
+		}
+		m.mu.Unlock()
 	}
 }
 
@@ -57,6 +81,9 @@ func (m *WebSocketManager) HandleWebSocket(c *gin.Context) {
 	m.addConnection(wsConn)
 	defer m.removeConnection(wsConn)
 
+	// Update last activity time
+	m.updateLastActivity(chatroomID)
+
 	// Send existing messages
 	messages, err := m.messageRepo.GetByChatroomID(chatroomID)
 	if err == nil {
@@ -77,6 +104,9 @@ func (m *WebSocketManager) HandleWebSocket(c *gin.Context) {
 			return
 		}
 
+		// Update last activity time
+		m.updateLastActivity(chatroomID)
+
 		// Set chatroom ID and save message
 		message.ChatroomID = chatroomID
 		if err := m.messageRepo.Create(&message); err != nil {
@@ -89,10 +119,17 @@ func (m *WebSocketManager) HandleWebSocket(c *gin.Context) {
 	}
 }
 
+func (m *WebSocketManager) updateLastActivity(chatroomID string) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.lastActivity[chatroomID] = time.Now()
+}
+
 func (m *WebSocketManager) addConnection(conn *WebSocketConnection) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.connections[conn.chatroom] = append(m.connections[conn.chatroom], conn)
+	m.lastActivity[conn.chatroom] = time.Now()
 }
 
 func (m *WebSocketManager) removeConnection(conn *WebSocketConnection) {
@@ -106,6 +143,9 @@ func (m *WebSocketManager) removeConnection(conn *WebSocketConnection) {
 			break
 		}
 	}
+
+	// Update last activity time when removing connection
+	m.lastActivity[conn.chatroom] = time.Now()
 }
 
 func (m *WebSocketManager) broadcastMessage(chatroomID string, message models.Message) {
@@ -118,4 +158,21 @@ func (m *WebSocketManager) broadcastMessage(chatroomID string, message models.Me
 			log.Printf("Error broadcasting message: %v", err)
 		}
 	}
+}
+
+func (m *WebSocketManager) HasActiveConnections(chatroomID string) bool {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	connections, exists := m.connections[chatroomID]
+	if exists && len(connections) > 0 {
+		return true
+	}
+
+	lastActive, exists := m.lastActivity[chatroomID]
+	if !exists {
+		return false
+	}
+
+	return time.Since(lastActive) <= 10*time.Second
 }

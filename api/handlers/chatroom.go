@@ -11,11 +11,15 @@ import (
 )
 
 type ChatroomHandler struct {
-	repo repositories.ChatroomRepository
+	repo      repositories.ChatroomRepository
+	wsManager *WebSocketManager
 }
 
-func NewChatroomHandler(repo repositories.ChatroomRepository) *ChatroomHandler {
-	return &ChatroomHandler{repo: repo}
+func NewChatroomHandler(repo repositories.ChatroomRepository, wsManager *WebSocketManager) *ChatroomHandler {
+	return &ChatroomHandler{
+		repo:      repo,
+		wsManager: wsManager,
+	}
 }
 
 // CreateChatroom handles the creation of a new chatroom
@@ -88,4 +92,23 @@ func (h *ChatroomHandler) DeleteChatroom(c *gin.Context) {
 	}
 
 	c.Status(http.StatusNoContent)
+}
+
+// GetActiveChatrooms returns only chatrooms with active WebSocket connections
+func (h *ChatroomHandler) GetActiveChatrooms(c *gin.Context) {
+	chatrooms, err := h.repo.GetAll()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	// Filter chatrooms to only include those with active connections
+	activeChatrooms := make([]*models.Chatroom, 0)
+	for _, chatroom := range chatrooms {
+		if h.wsManager.HasActiveConnections(chatroom.ID) {
+			activeChatrooms = append(activeChatrooms, chatroom)
+		}
+	}
+
+	c.JSON(http.StatusOK, activeChatrooms)
 }
