@@ -157,13 +157,28 @@
             .catch(error => console.error('Error creating chatroom:', error));
         }
 
+        function generateRandomNickname() {
+            const adjectives = ['Happy', 'Funny', 'Clever', 'Brave', 'Kind', 'Wise', 'Gentle', 'Swift', 'Bright', 'Calm'];
+            const nouns = ['Panda', 'Tiger', 'Eagle', 'Dolphin', 'Lion', 'Wolf', 'Fox', 'Bear', 'Owl', 'Hawk'];
+            const randomNumber = Math.floor(Math.random() * 1000);
+            const adjective = adjectives[Math.floor(Math.random() * adjectives.length)];
+            const noun = nouns[Math.floor(Math.random() * nouns.length)];
+            return `${adjective}${noun}${randomNumber}`;
+        }
+
         function connect() {
-            nickname = document.getElementById('nickname').value;
             chatroomId = document.getElementById('chatroomId').value;
             
-            if (!nickname || !chatroomId) {
-                alert('Please enter both nickname and chatroom ID');
+            if (!chatroomId) {
+                alert('Please enter a chatroom ID');
                 return;
+            }
+
+            // Generate random nickname if not provided
+            nickname = document.getElementById('nickname').value;
+            if (!nickname || nickname.trim() === '') {
+                nickname = generateRandomNickname();
+                document.getElementById('nickname').value = nickname;
             }
 
             // Hide other sections and show chat section
