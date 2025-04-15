@@ -192,7 +192,10 @@
             document.getElementById('chatSection').style.display = 'block';
             document.getElementById('currentChatroomName').textContent = currentChatroomName;
 
-            ws = new WebSocket(`ws://localhost:8080/api/chatrooms/${chatroomId}/ws`);
+            // Use relative path for WebSocket connection
+            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const wsUrl = `${protocol}//${window.location.host}/api/chatrooms/${chatroomId}/ws`;
+            ws = new WebSocket(wsUrl);
 
             ws.onmessage = function(event) {
                 const message = JSON.parse(event.data);
