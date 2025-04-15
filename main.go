@@ -18,9 +18,13 @@ func main() {
 	// Initialize handlers
 	chatroomHandler := handlers.NewChatroomHandler(chatroomRepo)
 	messageHandler := handlers.NewMessageHandler(messageRepo, chatroomRepo)
+	wsManager := handlers.NewWebSocketManager(messageRepo)
 
 	// Health check endpoint
 	r.GET("/health", handlers.HealthCheck)
+
+	// Serve static HTML file
+	r.StaticFile("/", "./client.html")
 
 	// Chatroom routes
 	chatroomGroup := r.Group("/api/chatrooms")
@@ -34,6 +38,9 @@ func main() {
 		// Message routes
 		chatroomGroup.POST("/:id/messages", messageHandler.CreateMessage)
 		chatroomGroup.GET("/:id/messages", messageHandler.GetMessagesByChatroomID)
+
+		// WebSocket endpoint for real-time chat
+		chatroomGroup.GET("/:id/ws", wsManager.HandleWebSocket)
 	}
 
 	// Start server
