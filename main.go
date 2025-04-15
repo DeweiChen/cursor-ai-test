@@ -11,9 +11,13 @@ func main() {
 	// Initialize Gin router
 	r := gin.Default()
 
-	// Initialize repository and handler
+	// Initialize repositories
 	chatroomRepo := repositories.NewMemoryChatroomRepository()
+	messageRepo := repositories.NewMemoryMessageRepository()
+
+	// Initialize handlers
 	chatroomHandler := handlers.NewChatroomHandler(chatroomRepo)
+	messageHandler := handlers.NewMessageHandler(messageRepo, chatroomRepo)
 
 	// Health check endpoint
 	r.GET("/health", handlers.HealthCheck)
@@ -26,6 +30,10 @@ func main() {
 		chatroomGroup.GET("/:id", chatroomHandler.GetChatroom)
 		chatroomGroup.PUT("/:id", chatroomHandler.UpdateChatroom)
 		chatroomGroup.DELETE("/:id", chatroomHandler.DeleteChatroom)
+
+		// Message routes
+		chatroomGroup.POST("/:id/messages", messageHandler.CreateMessage)
+		chatroomGroup.GET("/:id/messages", messageHandler.GetMessagesByChatroomID)
 	}
 
 	// Start server
